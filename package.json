@@ -1,0 +1,13 @@
+{
+  "name": "azari-trade-ai",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AZARI TRADE AI — موتور سیگنال روی GitHub Actions + داشبورد استاتیک روی GitHub Pages (رایگان، بدون سرور)",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "scan": "node engine/run.mjs",
+    "backtest": "node engine/backtest.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

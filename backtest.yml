@@ -1,0 +1,48 @@
+name: backtest
+
+# بک‌تست والک‌فوروارد با همان موتور زنده روی داده‌ی واقعی ۶۰ روز اخیر.
+# نتیجه روی شاخهٔ data (backtest.json) منتشر می‌شود و در سایت نمایش داده می‌شود.
+on:
+  schedule:
+    - cron: '30 6 * * 0'   # هر یکشنبه
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'تعداد روز بک‌تست (حداکثر ۵۰)'
+        default: '40'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: azari-data
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: بازیابی داده‌ها
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/restore-data.sh out
+      - name: اجرای بک‌تست
+        env:
+          STATE_DIR: out
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          MIN_SCORE: ${{ vars.MIN_SCORE }}
+          FLOOR_SCORE: ${{ vars.FLOOR_SCORE }}
+          DAILY_TARGET: ${{ vars.DAILY_TARGET }}
+          DAILY_MAX: ${{ vars.DAILY_MAX }}
+          MAX_ACTIVE: ${{ vars.MAX_ACTIVE }}
+          MAX_COST_R: ${{ vars.MAX_COST_R }}
+        run: node engine/backtest.mjs "${{ inputs.days || '40' }}"
+      - name: انتشار نتیجه
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/publish-data.sh out

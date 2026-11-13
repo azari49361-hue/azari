@@ -1,0 +1,69 @@
+name: signals
+
+# موتور سیگنال: هر ۵ دقیقه اجرا می‌شود، کندل‌های بستهٔ M15 را اسکن می‌کند، TP/SL را پیگیری می‌کند،
+# به تلگرام می‌فرستد و state.json را روی شاخهٔ data منتشر می‌کند (سایت از همان‌جا می‌خواند).
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      send_test:
+        description: 'یک پیام آزمایشی به کانال تلگرام بفرست'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # نوشتن روی شاخهٔ data
+  actions: write    # زنده نگه داشتن زمان‌بندی (keepalive)
+
+# اجراها پشت‌سرهم و بدون هم‌پوشانی (دو اجرا هم‌زمان state را خراب می‌کنند)
+concurrency:
+  group: azari-data
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: بازیابی داده‌ها از شاخهٔ data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/restore-data.sh out
+
+      - name: اجرای موتور سیگنال
+        env:
+          SEND_TEST: ${{ inputs.send_test }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          MIN_SCORE: ${{ vars.MIN_SCORE }}
+          FLOOR_SCORE: ${{ vars.FLOOR_SCORE }}
+          DAILY_TARGET: ${{ vars.DAILY_TARGET }}
+          DAILY_MAX: ${{ vars.DAILY_MAX }}
+          MAX_ACTIVE: ${{ vars.MAX_ACTIVE }}
+          MAX_COST_R: ${{ vars.MAX_COST_R }}
+        run: node engine/run.mjs
+
+      - name: انتشار داده روی شاخهٔ data
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f out/state.json ]; then bash scripts/publish-data.sh out; else echo "state.json ساخته نشد؛ انتشار انجام نمی‌شود."; fi
+
+      # GitHub زمان‌بندی را بعد از ۶۰ روز بی‌فعالیتی خاموش می‌کند؛ روزی یک‌بار آن را دوباره «فعال» اعلام می‌کنیم.
+      - name: زنده نگه داشتن زمان‌بندی
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$(date -u +%H)" = "03" ] && [ "$(date -u +%M)" -lt 10 ]; then
+            gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/signals.yml/enable" || true
+          fi
