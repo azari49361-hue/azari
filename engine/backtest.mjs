@@ -21,7 +21,9 @@ export async function simulate(barsBySym, { days = 40, warmupBars = 600, window 
   CFG.keepDays = 3650;
   try {
     const all = Object.values(barsBySym).flat();
-    const endT = Math.max(...all.map((b) => b.t)) + M15;
+    let endT = 0;
+    for (const b of all) if (b.t > endT) endT = b.t; // (نه Math.max(...) — با ده‌ها هزار کندل پشتهٔ فراخوانی پر می‌شود)
+    endT += M15;
     const startT = endT - days * 86_400_000;
     const ptr = {};
     let state = emptyState();
@@ -106,7 +108,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const days = Number(process.argv[2]) || 40;
   const barsBySym = {};
   for (const sym of SYMBOLS) {
-    const r = await fetchBars(sym, { range: '60d' });
+    const r = await fetchBars(sym, { range: '60d', futuresFallback: true });
     if (r.bars.length) { barsBySym[sym.code] = r.bars; console.log(`${sym.code}: ${r.bars.length} کندل از ${r.source}`); }
     else console.log(`${sym.code}: ❌ ${r.errors.join(' | ')}`);
   }

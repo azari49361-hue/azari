@@ -107,12 +107,14 @@ async function biquote(sym) {
 }
 
 /** آخرین کندل‌های M15 نماد را از اولین منبع سالم می‌گیرد. */
-export async function fetchBars(sym, { range = '10d' } = {}) {
+export async function fetchBars(sym, { range = '10d', futuresFallback = false } = {}) {
   const chain = [
     ['yahoo', () => yahoo(sym, range)],
     ['twelvedata', () => twelve(sym)],
     ['biquote', () => biquote(sym)],
   ];
+  // فقط بک‌تست: اگر تاریخچهٔ بلند طلای اسپات در دسترس نبود، آتی طلا (GC=F) را بگیر (ساختار قیمت یکی است)
+  if (futuresFallback && sym.code === 'XAUUSD') chain.splice(1, 0, ['yahoo-GC=F', () => yahoo({ ...sym, yahoo: 'GC=F' }, range)]);
   const errors = [];
   for (const [name, fn] of chain) {
     try {
